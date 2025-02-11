@@ -48,11 +48,24 @@ class Posts {
 			return false;
 		}
 
+		if (empty($response->getHeader('X-WP-TotalPages')[0])) {
+			return false;
+		}
+
 		$page_count = $response->getHeader('X-WP-TotalPages')[0];
+		$page_count = !empty($page_count) ? $page_count : 0;
 
 		$posts = [];
 		$posts['posts'] = json_decode($response->getBody(), true);
+		$posts['post_count'] = count($posts['posts']);
 		$posts['page_count'] = $page_count;
+
+		/**
+		 *  For debugging purposes, leaving this in
+		 *
+		 * 	AutoCopy::logError('Type: ' . $post_type . ', count: ' . $page_count . ', on page ' . $page . ' with '  .$posts['post_count'] . ' posts');
+		 *
+		 */
 
 		return $posts;
 	}

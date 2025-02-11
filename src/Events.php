@@ -12,16 +12,17 @@ class Events {
 	/**
 	 * Fetch each set of posts and schedule each one
 	 */
-	public static function fetchPosts(int $page): void {
-		$response = Posts::requestPosts($page);
+	public static function fetchPosts(int $page, string $post_type): void {
+		$response = Posts::requestPosts($page, $post_type);
 
 		if (!$response) {
+			AutoCopy::logError('There was an issue with the response');
 			return;
 		}
 
 		$posts = $response['posts'];
 
-		self::schedulePostLoop($posts);
+		self::schedulePostLoop($posts, $post_type);
 	}
 
 	/**
@@ -49,6 +50,7 @@ class Events {
 					'auto_copy_posts_fetch_posts',
 					[
 						'page' => $i,
+						'post_type' => $type,
 					],
 					'auto_copy_posts_fetch',
 				);
@@ -106,6 +108,7 @@ class Events {
 		string $post_type = null
 	): void {
 		if (empty($posts)) {
+			AutoCopy::logError('There wo no posts for ' . $post_type);
 			return;
 		}
 
@@ -135,7 +138,9 @@ class Events {
 		$post_transient = get_transient($transient);
 
 		if (empty($post_transient)) {
-			AutoCopy::logError('Could not fetch post transient');
+			AutoCopy::logError(
+				'Could not fetch post transient - ' . $transient,
+			);
 
 			// Todo - Send it back instead of just failing
 
@@ -268,7 +273,7 @@ class Events {
 			'post_content' => $content,
 			'post_status' => $post['status'],
 			'post_author' => $author,
-			'post_type' => $post['type'],
+			'post_type' => $local_post_type_single,
 			'post_category' => $category_ids,
 			'tags_input' => $tag_ids,
 			'tax_input' => $taxonomy_ids,
@@ -288,6 +293,13 @@ class Events {
 			$post_id = wp_update_post($data);
 		} else {
 			$post_id = wp_insert_post($data);
+
+			// Error check
+			if (is_wp_error($post_id)) {
+				AutoCopy::logError(
+					'Error creating post, ' . $post_id->get_error_message(),
+				);
+			}
 		}
 
 		if ($featured_image_url) {
