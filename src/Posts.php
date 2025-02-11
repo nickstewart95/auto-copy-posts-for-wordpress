@@ -113,4 +113,39 @@ class Posts {
 
 		return json_decode($response->getBody(), true);
 	}
+
+	/**
+	 * Fetch a featured image by attachment ID
+	 */
+	public static function requestMediaAttachment($id): string|bool {
+		$base_url = AutoCopy::getSiteUrl();
+
+		$client = new Client([
+			'base_uri' => $base_url,
+		]);
+
+		try {
+			$response = $client->request('GET', 'media/' . $id, [
+				'query' => [
+					'_embed' => 1,
+				],
+			]);
+
+			if ($response->getStatusCode() !== 200) {
+				$error_message =
+					'Error fetching media attachment: ' .
+					$response->getStatusCode();
+				AutoCopy::logError($error_message);
+
+				return false;
+			}
+		} catch (\Exception $e) {
+			AutoCopy::logError($e->getMessage());
+			return false;
+		}
+
+		$attachment = json_decode($response->getBody(), true);
+
+		return $attachment['guid']['rendered'];
+	}
 }

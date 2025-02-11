@@ -497,12 +497,12 @@ class AutoCopy {
 			$args = [
 				'labels' => [
 					'name' => $type,
-					'singular_name' => $type,	
+					'singular_name' => $type,
 				],
 				'public' => true,
 				'has_archive' => true,
 			];
-		
+
 			register_post_type($type, $args);
 		}
 	}
@@ -1083,7 +1083,7 @@ WHERE meta.`meta_key` = %s
 			return self::DEFAULT_POST_TYPE_SINGLE;
 		}
 
-		$id = substr($plural_query->option_name, -1);
+		$id = substr(reset($plural_query)->option_name, -1);
 		$local_post_type = $wpdb->get_results(
 			"SELECT * FROM {$wpdb->prefix}options WHERE option_name = 'auto_copy_posts_custom_post_type_local_single_name_{$id}' LIMIT 1",
 		);
@@ -1092,7 +1092,7 @@ WHERE meta.`meta_key` = %s
 			return self::DEFAULT_POST_TYPE_SINGLE;
 		}
 
-		return $local_post_type->value;
+		return reset($local_post_type)->option_value;
 	}
 
 	/**
@@ -1108,7 +1108,7 @@ WHERE meta.`meta_key` = %s
 			return self::DEFAULT_POST_TYPE_SINGLE;
 		}
 
-		$id = substr($plural_query->option_name, -1);
+		$id = substr(reset($plural_query)->option_name, -1);
 		$local_post_type = $wpdb->get_results(
 			"SELECT * FROM {$wpdb->prefix}options WHERE option_name = 'auto_copy_posts_custom_post_type_local_plural_name_{$id}' LIMIT 1",
 		);
@@ -1117,7 +1117,65 @@ WHERE meta.`meta_key` = %s
 			return self::DEFAULT_POST_TYPE_SINGLE;
 		}
 
-		return $local_post_type->value;
+		return reset($local_post_type)->option_value;
+	}
+
+	/**
+	 * Returns the a content field by using the external post type
+	 */
+	public static function findContentFieldByPostType(
+		string $external_post_type_single
+	): string|bool {
+		if (empty($external_post_type_single)) {
+			return false;
+		}
+
+		global $wpdb;
+		$plural_query = $wpdb->get_results(
+			"SELECT * FROM {$wpdb->prefix}options WHERE option_name LIKE 'auto_copy_posts_custom_post_type_single_name_1%' AND option_value ='{$external_post_type_single}' LIMIT 1",
+		);
+
+		if (empty($plural_query)) {
+			return false;
+		}
+
+		$id = substr(reset($plural_query)->option_name, -1);
+		$local_post_type = $wpdb->get_results(
+			"SELECT * FROM {$wpdb->prefix}options WHERE option_name = 'auto_copy_posts_custom_post_type_content_field_{$id}' LIMIT 1",
+		);
+
+		if (empty($local_post_type)) {
+			return false;
+		}
+
+		return reset($local_post_type)->option_value;
+	}
+
+	/**
+	 * Returns the featured image by external post type
+	 */
+	public static function findFeaturedImageFieldByPostType(
+		string $external_post_type_single
+	): string|bool {
+		global $wpdb;
+		$plural_query = $wpdb->get_results(
+			"SELECT * FROM {$wpdb->prefix}options WHERE option_name LIKE 'auto_copy_posts_custom_post_type_single_name_1%' AND option_value ='{$external_post_type_single}' LIMIT 1",
+		);
+
+		if (empty($plural_query)) {
+			return false;
+		}
+
+		$id = substr(reset($plural_query)->option_name, -1);
+		$local_post_type = $wpdb->get_results(
+			"SELECT * FROM {$wpdb->prefix}options WHERE option_name = 'auto_copy_posts_custom_post_type_featured_image_field_{$id}' LIMIT 1",
+		);
+
+		if (empty($local_post_type)) {
+			return false;
+		}
+
+		return reset($local_post_type)->option_value;
 	}
 
 	/**

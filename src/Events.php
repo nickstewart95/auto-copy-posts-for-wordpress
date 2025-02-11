@@ -31,6 +31,10 @@ class Events {
 	public static function schedulePosts(): void {
 		$post_types = AutoCopy::possibleExternalPostTypes();
 
+		if (empty($post_types)) {
+			return;
+		}
+
 		foreach ($post_types as $type) {
 			$response = Posts::requestPosts(1, $type);
 
@@ -113,6 +117,10 @@ class Events {
 		}
 
 		$post_type = !empty($post_type) ?? AutoCopy::DEFAULT_POST_TYPE_PLURAL;
+
+		if (empty($posts)) {
+			return;
+		}
 
 		foreach ($posts as $post) {
 			$post['post_type_plural'] = $post_type;
@@ -200,8 +208,30 @@ class Events {
 				$post['_embedded']['wp:featuredmedia'][0]['alt_text'] ?: '';
 		}
 
+		// Check if featured image could live elsewhere
+		// Maybe refactor into a job since its an additional outside request
+		$featured_image_elsehwere = AutoCopy::findFeaturedImageFieldByPostType(
+			$post['type'],
+		);
+		if ($featured_image_elsehwere) {
+			$attachment = !empty($post['acf'][$featured_image_elsehwere])
+				? $post['acf'][$featured_image_elsehwere]
+				: false;
+
+			// Fetch the source if its an attachment ID
+			if (is_int($attachment)) {
+				$featured_image_url = Posts::requestMediaAttachment(
+					$attachment,
+				);
+			} elseif ($attachment) {
+				$featured_image_url = $attachment;
+			} else {
+				AutoCopy::logError('Could not find featured image');
+			}
+		}
+
 		// Meta from the post
-		$meta = $post['meta'];
+		$meta = !empty($post['meta']) ? $post['meta'] : [];
 
 		$mutated_id = AutoCopy::mutatePostId($post['id']);
 
@@ -213,60 +243,76 @@ class Events {
 		$meta['auto_copy_posts_last_synced_date_gtm'] = Carbon::now('UTC');
 
 		// Setup the terms
-		$terms_parent = $post['_embedded']['wp:term'];
 		$category_ids = [];
 		$tag_ids = [];
 		$taxonomy_ids = [];
+		if (!empty($post['_embedded']['wp:term'])) {
+			$terms_parent = $post['_embedded']['wp:term'];
 
-		foreach ($terms_parent as $terms) {
-			foreach ($terms as $term) {
-				if (empty($term['name'])) {
-					continue;
-				}
+			if (!empty($terms_parent)) {
+				foreach ($terms_parent as $terms) {
+					foreach ($terms as $term) {
+						if (empty($term['name'])) {
+							continue;
+						}
 
-				if ($term['taxonomy'] == 'category') {
-					$category_ids[] = self::createOrFindTerm(
-						'category',
-						$term['name'],
-						$term['slug'],
-					);
-				} elseif ($term['taxonomy'] == 'post_tag') {
-					$tag_ids[] = self::createOrFindTerm(
-						'post_tag',
-						$term['name'],
-						$term['slug'],
-					);
-				} else {
-					// Create or find taxonomy
-					$taxonomy = self::createOrFindTaxonomy(
-						$term['taxonomy'],
-						$local_post_type_single,
-						$local_post_type_plural,
-					);
+						if ($term['taxonomy'] == 'category') {
+							$category_ids[] = self::createOrFindTerm(
+								'category',
+								$term['name'],
+								$term['slug'],
+							);
+						} elseif ($term['taxonomy'] == 'post_tag') {
+							$tag_ids[] = self::createOrFindTerm(
+								'post_tag',
+								$term['name'],
+								$term['slug'],
+							);
+						} else {
+							// Create or find taxonomy
+							$taxonomy = self::createOrFindTaxonomy(
+								$term['taxonomy'],
+								$local_post_type_single,
+								$local_post_type_plural,
+							);
 
-					// Insert taxonomy terms
-					$term_taxonomy_id = self::createOrFindTerm(
-						$taxonomy,
-						$term['name'],
-						$term['slug'],
-					);
+							// Insert taxonomy terms
+							$term_taxonomy_id = self::createOrFindTerm(
+								$taxonomy,
+								$term['name'],
+								$term['slug'],
+							);
 
-					$taxonomy_ids[$taxonomy] = [$term_taxonomy_id];
+							$taxonomy_ids[$taxonomy] = [$term_taxonomy_id];
+						}
+					}
 				}
 			}
 		}
 
-		$content = $post['content']['rendered'];
+		// Grab where the content field lives, either as content or in ACF
+		$content_field = AutoCopy::findContentFieldByPostType($post['type']);
+		if (!empty($content_field)) {
+			$content = !empty($post['acf'][$content_field])
+				? $post['acf'][$content_field]
+				: '';
+		} else {
+			$content = $post['content']['rendered'];
+		}
 
 		$author_slug = !empty($post['_embedded']['author'][0]['slug'])
 			? $post['_embedded']['author'][0]['slug']
 			: false;
 		$author = self::createOrFindAuthor($author_slug);
 
+		$excerpt = !empty($post['excerpt']['rendered'])
+			? $post['excerpt']['rendered']
+			: wp_trim_excerpt($content);
+
 		// Setup post attributes
 		$data = [
 			'post_title' => $title,
-			'post_excerpt' => $post['excerpt']['rendered'],
+			'post_excerpt' => $excerpt,
 			'post_date' => $post['date'],
 			'post_date_gmt' => $post['date_gmt'],
 			'meta_input' => $meta,
@@ -302,7 +348,7 @@ class Events {
 			}
 		}
 
-		if ($featured_image_url) {
+		if (!empty($featured_image_url)) {
 			self::setFeaturedImage(
 				$post_id,
 				$featured_image_url,
