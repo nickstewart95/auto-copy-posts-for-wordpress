@@ -12,43 +12,53 @@ class Events {
 	/**
 	 * Fetch each set of posts and schedule each one
 	 */
-	public static function fetchPosts(int $page): void {
-		$response = Posts::requestPosts($page);
+	public static function fetchPosts(int $page, string $post_type): void {
+		$response = Posts::requestPosts($page, $post_type);
 
 		if (!$response) {
+			AutoCopy::logError('There was an issue with the response');
 			return;
 		}
 
 		$posts = $response['posts'];
 
-		self::schedulePostLoop($posts);
+		self::schedulePostLoop($posts, $post_type);
 	}
 
 	/**
 	 * Schedule the posts per page to prevent timeouts
 	 */
 	public static function schedulePosts(): void {
-		$response = Posts::requestPosts(1);
+		$post_types = AutoCopy::possibleExternalPostTypes();
 
-		if (!$response) {
+		if (empty($post_types)) {
 			return;
 		}
 
-		$page_count = $response['page_count'];
-		$posts = $response['posts'];
+		foreach ($post_types as $type) {
+			$response = Posts::requestPosts(1, $type);
 
-		self::schedulePostLoop($posts);
+			if (!$response) {
+				continue;
+			}
 
-		// Schedule the additional requests
-		for ($i = 2; $i < $page_count + 1; $i++) {
-			as_schedule_single_action(
-				time(),
-				'auto_copy_posts_fetch_posts',
-				[
-					'page' => $i,
-				],
-				'auto_copy_posts_fetch',
-			);
+			$page_count = $response['page_count'];
+			$posts = $response['posts'];
+
+			self::schedulePostLoop($posts);
+
+			// Schedule the additional requests
+			for ($i = 2; $i < $page_count + 1; $i++) {
+				as_schedule_single_action(
+					time(),
+					'auto_copy_posts_fetch_posts',
+					[
+						'page' => $i,
+						'post_type' => $type,
+					],
+					'auto_copy_posts_fetch',
+				);
+			}
 		}
 	}
 
@@ -97,12 +107,24 @@ class Events {
 	/**
 	 * Loop thru the posts array and schedule the post creation
 	 */
-	public static function schedulePostLoop(array|null $posts): void {
+	public static function schedulePostLoop(
+		array|null $posts,
+		string $post_type = null
+	): void {
+		if (empty($posts)) {
+			AutoCopy::logError('There wo no posts for ' . $post_type);
+			return;
+		}
+
+		$post_type = !empty($post_type) ?? AutoCopy::DEFAULT_POST_TYPE_PLURAL;
+
 		if (empty($posts)) {
 			return;
 		}
 
 		foreach ($posts as $post) {
+			$post['post_type_plural'] = $post_type;
+
 			// Post data is too large to pass to action, so we will store it temporarliy to pass and then delete
 			$transient = AutoCopy::postTransient($post, true);
 
@@ -124,7 +146,9 @@ class Events {
 		$post_transient = get_transient($transient);
 
 		if (empty($post_transient)) {
-			AutoCopy::logError('Could not fetch post transient');
+			AutoCopy::logError(
+				'Could not fetch post transient - ' . $transient,
+			);
 
 			// Todo - Send it back instead of just failing
 
@@ -132,6 +156,14 @@ class Events {
 		}
 
 		$post = json_decode($post_transient, true);
+		$post_type_plural = $post['post_type_plural'];
+		$local_post_type_single = AutoCopy::pluralToLocalSinglePostType(
+			$post_type_plural,
+		);
+		$local_post_type_plural = AutoCopy::pluralToLocalPLuralPostType(
+			$post_type_plural,
+		);
+
 		$skip_post = apply_filters(
 			'auto_copy_posts_post_title_matching',
 			AutoCopy::pluginSetting('auto_copy_posts_post_title_matching'),
@@ -141,13 +173,25 @@ class Events {
 
 		if ($skip_post) {
 			// Check if post already exists with same title
-			$post_exists = \post_exists($title);
+			$post_exists = \post_exists(
+				$title,
+				false,
+				false,
+				$local_post_type_single,
+				false,
+			);
 
 			// Do one more check, the encoding gets weird
 			$tmp_title = str_replace('`', '\'', $title);
 			$tmp_title = str_replace('’', '\'', $title);
 
-			$post_exists = \post_exists($tmp_title);
+			$post_exists = \post_exists(
+				$tmp_title,
+				false,
+				false,
+				$local_post_type_single,
+				false,
+			);
 
 			if ($post_exists) {
 				delete_transient($transient);
@@ -164,8 +208,30 @@ class Events {
 				$post['_embedded']['wp:featuredmedia'][0]['alt_text'] ?: '';
 		}
 
+		// Check if featured image could live elsewhere
+		// Maybe refactor into a job since its an additional outside request
+		$featured_image_elsehwere = AutoCopy::findFeaturedImageFieldByPostType(
+			$post['type'],
+		);
+		if ($featured_image_elsehwere) {
+			$attachment = !empty($post['acf'][$featured_image_elsehwere])
+				? $post['acf'][$featured_image_elsehwere]
+				: false;
+
+			// Fetch the source if its an attachment ID
+			if (is_int($attachment)) {
+				$featured_image_url = Posts::requestMediaAttachment(
+					$attachment,
+				);
+			} elseif ($attachment) {
+				$featured_image_url = $attachment;
+			} else {
+				AutoCopy::logError('Could not find featured image');
+			}
+		}
+
 		// Meta from the post
-		$meta = $post['meta'];
+		$meta = !empty($post['meta']) ? $post['meta'] : [];
 
 		$mutated_id = AutoCopy::mutatePostId($post['id']);
 
@@ -177,63 +243,83 @@ class Events {
 		$meta['auto_copy_posts_last_synced_date_gtm'] = Carbon::now('UTC');
 
 		// Setup the terms
-		$terms_parent = $post['_embedded']['wp:term'];
 		$category_ids = [];
 		$tag_ids = [];
 		$taxonomy_ids = [];
+		if (!empty($post['_embedded']['wp:term'])) {
+			$terms_parent = $post['_embedded']['wp:term'];
 
-		foreach ($terms_parent as $terms) {
-			foreach ($terms as $term) {
-				if (empty($term['name'])) {
-					continue;
-				}
+			if (!empty($terms_parent)) {
+				foreach ($terms_parent as $terms) {
+					foreach ($terms as $term) {
+						if (empty($term['name'])) {
+							continue;
+						}
 
-				if ($term['taxonomy'] == 'category') {
-					$category_ids[] = self::createOrFindTerm(
-						'category',
-						$term['name'],
-						$term['slug'],
-					);
-				} elseif ($term['taxonomy'] == 'post_tag') {
-					$tag_ids[] = self::createOrFindTerm(
-						'post_tag',
-						$term['name'],
-						$term['slug'],
-					);
-				} else {
-					// Create or find taxonomy
-					$taxonomy = self::createOrFindTaxonomy($term['taxonomy']);
+						if ($term['taxonomy'] == 'category') {
+							$category_ids[] = self::createOrFindTerm(
+								'category',
+								$term['name'],
+								$term['slug'],
+							);
+						} elseif ($term['taxonomy'] == 'post_tag') {
+							$tag_ids[] = self::createOrFindTerm(
+								'post_tag',
+								$term['name'],
+								$term['slug'],
+							);
+						} else {
+							// Create or find taxonomy
+							$taxonomy = self::createOrFindTaxonomy(
+								$term['taxonomy'],
+								$local_post_type_single,
+								$local_post_type_plural,
+							);
 
-					// Insert taxonomy terms
-					$term_taxonomy_id = self::createOrFindTerm(
-						$taxonomy,
-						$term['name'],
-						$term['slug'],
-					);
+							// Insert taxonomy terms
+							$term_taxonomy_id = self::createOrFindTerm(
+								$taxonomy,
+								$term['name'],
+								$term['slug'],
+							);
 
-					$taxonomy_ids[$taxonomy] = [$term_taxonomy_id];
+							$taxonomy_ids[$taxonomy] = [$term_taxonomy_id];
+						}
+					}
 				}
 			}
 		}
 
-		$content = $post['content']['rendered'];
+		// Grab where the content field lives, either as content or in ACF
+		$content_field = AutoCopy::findContentFieldByPostType($post['type']);
+		if (!empty($content_field)) {
+			$content = !empty($post['acf'][$content_field])
+				? $post['acf'][$content_field]
+				: '';
+		} else {
+			$content = $post['content']['rendered'];
+		}
 
 		$author_slug = !empty($post['_embedded']['author'][0]['slug'])
 			? $post['_embedded']['author'][0]['slug']
 			: false;
 		$author = self::createOrFindAuthor($author_slug);
 
+		$excerpt = !empty($post['excerpt']['rendered'])
+			? $post['excerpt']['rendered']
+			: wp_trim_excerpt($content);
+
 		// Setup post attributes
 		$data = [
 			'post_title' => $title,
-			'post_excerpt' => $post['excerpt']['rendered'],
+			'post_excerpt' => $excerpt,
 			'post_date' => $post['date'],
 			'post_date_gmt' => $post['date_gmt'],
 			'meta_input' => $meta,
 			'post_content' => $content,
 			'post_status' => $post['status'],
 			'post_author' => $author,
-			'post_type' => $post['type'],
+			'post_type' => $local_post_type_single,
 			'post_category' => $category_ids,
 			'tags_input' => $tag_ids,
 			'tax_input' => $taxonomy_ids,
@@ -253,9 +339,16 @@ class Events {
 			$post_id = wp_update_post($data);
 		} else {
 			$post_id = wp_insert_post($data);
+
+			// Error check
+			if (is_wp_error($post_id)) {
+				AutoCopy::logError(
+					'Error creating post, ' . $post_id->get_error_message(),
+				);
+			}
 		}
 
-		if ($featured_image_url) {
+		if (!empty($featured_image_url)) {
 			self::setFeaturedImage(
 				$post_id,
 				$featured_image_url,
@@ -351,20 +444,14 @@ class Events {
 	/**
 	 * Create or find a taxonomy
 	 */
-	public static function createOrFindTaxonomy(string $name): string {
+	public static function createOrFindTaxonomy(
+		string $name,
+		string $post_type_single,
+		string $post_type_plural
+	): string {
 		if (taxonomy_exists($name)) {
 			return $name;
 		}
-
-		$post_type_single = apply_filters(
-			'auto_copy_posts_post_type_single',
-			AutoCopy::pluginSetting('auto_copy_posts_post_type_single'),
-		);
-
-		$post_type_plural = apply_filters(
-			'auto_copy_posts_post_type_plural',
-			AutoCopy::pluginSetting('auto_copy_posts_post_type_plural'),
-		);
 
 		// Create taxonomy
 		$args = [

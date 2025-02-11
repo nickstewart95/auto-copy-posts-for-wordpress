@@ -10,13 +10,13 @@ class Posts {
 	/**
 	 * Helper function that returns a set of posts
 	 */
-	public static function requestPosts(int $page): bool|array {
+	public static function requestPosts(
+		int $page,
+		string $post_type = null
+	): bool|array {
 		$base_url = AutoCopy::getSiteUrl();
 
-		$post_type = apply_filters(
-			'auto_copy_posts_post_type_plural',
-			AutoCopy::pluginSetting('auto_copy_posts_post_type_plural'),
-		);
+		$post_type = $post_type ?? AutoCopy::DEFAULT_POST_TYPE_PLURAL;
 
 		$posts_per_page = apply_filters(
 			'auto_copy_posts_post_per_page',
@@ -48,11 +48,24 @@ class Posts {
 			return false;
 		}
 
+		if (empty($response->getHeader('X-WP-TotalPages')[0])) {
+			return false;
+		}
+
 		$page_count = $response->getHeader('X-WP-TotalPages')[0];
+		$page_count = !empty($page_count) ? $page_count : 0;
 
 		$posts = [];
 		$posts['posts'] = json_decode($response->getBody(), true);
+		$posts['post_count'] = count($posts['posts']);
 		$posts['page_count'] = $page_count;
+
+		/**
+		 *  For debugging purposes, leaving this in
+		 *
+		 * 	AutoCopy::logError('Type: ' . $post_type . ', count: ' . $page_count . ', on page ' . $page . ' with '  .$posts['post_count'] . ' posts');
+		 *
+		 */
 
 		return $posts;
 	}
@@ -99,5 +112,40 @@ class Posts {
 		}
 
 		return json_decode($response->getBody(), true);
+	}
+
+	/**
+	 * Fetch a featured image by attachment ID
+	 */
+	public static function requestMediaAttachment($id): string|bool {
+		$base_url = AutoCopy::getSiteUrl();
+
+		$client = new Client([
+			'base_uri' => $base_url,
+		]);
+
+		try {
+			$response = $client->request('GET', 'media/' . $id, [
+				'query' => [
+					'_embed' => 1,
+				],
+			]);
+
+			if ($response->getStatusCode() !== 200) {
+				$error_message =
+					'Error fetching media attachment: ' .
+					$response->getStatusCode();
+				AutoCopy::logError($error_message);
+
+				return false;
+			}
+		} catch (\Exception $e) {
+			AutoCopy::logError($e->getMessage());
+			return false;
+		}
+
+		$attachment = json_decode($response->getBody(), true);
+
+		return $attachment['guid']['rendered'];
 	}
 }
