@@ -45,6 +45,7 @@ class AutoCopy {
 		add_action('init', [$this, 'initFilters']);
 		add_action('admin_init', [$this, 'initSettings']);
 		add_action('init', [$this, 'initTaxonomy']);
+		add_action('init', [$this, 'initPostTypes']);
 		add_action('action_scheduler_init', [Events::class, 'scheduleSync']);
 	}
 
@@ -77,7 +78,7 @@ class AutoCopy {
 			'auto_copy_posts_fetch_posts',
 			[Events::class, 'fetchPosts'],
 			10,
-			1,
+			2,
 		);
 		add_action(
 			'auto_copy_posts_create_post',
@@ -476,6 +477,37 @@ class AutoCopy {
 	}
 
 	/**
+	 * Setup custom post types saved as local post types to sync to
+	 */
+	public function initPostTypes(): void {
+		// Fetch possible post types
+		$post_types = self::possibleLocalPostTypes();
+
+		if (empty($post_types)) {
+			return;
+		}
+
+		// Loop thru and check if existing, create if not
+		foreach ($post_types as $type) {
+			if (post_type_exists($type)) {
+				continue;
+			}
+
+			// Minimal options here
+			$args = [
+				'labels' => [
+					'name' => $type,
+					'singular_name' => $type,	
+				],
+				'public' => true,
+				'has_archive' => true,
+			];
+		
+			register_post_type($type, $args);
+		}
+	}
+
+	/**
 	 * Setup Blade for templating
 	 */
 	public static function initBladeViews() {
@@ -634,7 +666,7 @@ WHERE meta.`meta_key` = %s
 		}
 
 		if (
-			!isset($_GET['page']) &&
+			isset($_GET['page']) &&
 			$_GET['page'] !== 'auto-copy-posts-wordpress'
 		) {
 			return;
