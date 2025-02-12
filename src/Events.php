@@ -222,11 +222,14 @@ class Events {
 			if (is_int($attachment)) {
 				$featured_image_url = Posts::requestMediaAttachment(
 					$attachment,
+					$post['id'],
 				);
 			} elseif ($attachment) {
 				$featured_image_url = $attachment;
 			} else {
-				AutoCopy::logError('Could not find featured image');
+				AutoCopy::logError(
+					'Could not find featured image, post ' . $title,
+				);
 			}
 		}
 
