@@ -117,7 +117,7 @@ class Posts {
 	/**
 	 * Fetch a featured image by attachment ID
 	 */
-	public static function requestMediaAttachment($id): string|bool {
+	public static function requestMediaAttachment($id, $post_id): string|bool {
 		$base_url = AutoCopy::getSiteUrl();
 
 		$client = new Client([
@@ -140,6 +140,9 @@ class Posts {
 				return false;
 			}
 		} catch (\Exception $e) {
+			AutoCopy::logError(
+				'Error fetching attachment for post ' . $post_id,
+			);
 			AutoCopy::logError($e->getMessage());
 			return false;
 		}

@@ -141,9 +141,11 @@ May or may not get to these todo items, more so if I have time and noticed I sho
 - [x] Rename the plugin for production use
 - [x] Branding
 - [ ] Space the jobs out (currently all the jobs just sorta fire)
+- [ ] Add job progress indicator
 - [x] Remove related events when plugin is uninstalled
 - [x] Copy over media
 - [x] Add option to match on title
+- [ ] Add test coverage
 
 ## Credits
 
