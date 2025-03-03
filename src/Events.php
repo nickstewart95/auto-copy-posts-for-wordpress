@@ -293,6 +293,15 @@ class Events {
 			}
 		}
 
+		// Add to local category is specified
+		$local_category = AutoCopy::findCategoryFieldByPostType($post['type']);
+		if (!empty($local_category)) {
+			$category_ids[] = self::createOrFindTerm(
+				'category',
+				$local_category,
+			);
+		}
+
 		// Grab where the content field lives, either as content or in ACF
 		$content_field = AutoCopy::findContentFieldByPostType($post['type']);
 		if (!empty($content_field)) {
