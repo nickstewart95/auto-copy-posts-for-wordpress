@@ -7,7 +7,7 @@ use Nickstewart\AutoCopy\Events;
 use Carbon\Carbon;
 use Jenssegers\Blade\Blade;
 
-define('AUTO_COPY_POSTS_VERSION', '1.7.0');
+define('AUTO_COPY_POSTS_VERSION', '1.8.0');
 define('AUTO_COPY_POSTS_FILE', __FILE__);
 
 class AutoCopy {
@@ -305,6 +305,13 @@ class AutoCopy {
 				'description' =>
 					'Plural name of the local post type being synced',
 				'value' => self::DEFAULT_POST_TYPE_PLURAL,
+			],
+			[
+				'name' => 'auto_copy_posts_custom_post_type_category_1',
+				'type' => 'text',
+				'title' => 'Post Type Local Category - 1',
+				'description' => 'Local category post gets placed in',
+				'value' => '',
 			],
 			[
 				'name' => 'auto_copy_posts_custom_post_type_content_field_1',
@@ -1159,7 +1166,7 @@ WHERE meta.`meta_key` = %s
 	): string|bool {
 		global $wpdb;
 		$plural_query = $wpdb->get_results(
-			"SELECT * FROM {$wpdb->prefix}options WHERE option_name LIKE 'auto_copy_posts_custom_post_type_single_name_1%' AND option_value ='{$external_post_type_single}' LIMIT 1",
+			"SELECT * FROM {$wpdb->prefix}options WHERE option_name LIKE 'auto_copy_posts_custom_post_type_single_name_%' AND option_value ='{$external_post_type_single}' LIMIT 1",
 		);
 
 		if (empty($plural_query)) {
@@ -1169,6 +1176,33 @@ WHERE meta.`meta_key` = %s
 		$id = substr(reset($plural_query)->option_name, -1);
 		$local_post_type = $wpdb->get_results(
 			"SELECT * FROM {$wpdb->prefix}options WHERE option_name = 'auto_copy_posts_custom_post_type_featured_image_field_{$id}' LIMIT 1",
+		);
+
+		if (empty($local_post_type)) {
+			return false;
+		}
+
+		return reset($local_post_type)->option_value;
+	}
+
+	/**
+	 * Returns the category by post type
+	 */
+	public static function findCategoryFieldByPostType(
+		string $external_post_type_single
+	): string|bool {
+		global $wpdb;
+		$plural_query = $wpdb->get_results(
+			"SELECT * FROM {$wpdb->prefix}options WHERE option_name LIKE 'auto_copy_posts_custom_post_type_single_name_%' AND option_value ='{$external_post_type_single}' LIMIT 1",
+		);
+
+		if (empty($plural_query)) {
+			return false;
+		}
+
+		$id = substr(reset($plural_query)->option_name, -1);
+		$local_post_type = $wpdb->get_results(
+			"SELECT * FROM {$wpdb->prefix}options WHERE option_name = 'auto_copy_posts_custom_post_type_category_{$id}' LIMIT 1",
 		);
 
 		if (empty($local_post_type)) {
