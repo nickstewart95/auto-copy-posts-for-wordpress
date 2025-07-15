@@ -236,6 +236,10 @@ class Events {
 		// Meta from the post
 		$meta = !empty($post['meta']) ? $post['meta'] : [];
 
+		// Add any visible ACF fields to the post meta
+		$acf_fields = !empty($post['acf']) ? $post['acf'] : [];
+		$meta = array_merge($meta, $acf_fields);
+
 		$mutated_id = AutoCopy::mutatePostId($post['id']);
 
 		// Plugin custom meta

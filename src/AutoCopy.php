@@ -7,7 +7,7 @@ use Nickstewart\AutoCopy\Events;
 use Carbon\Carbon;
 use Jenssegers\Blade\Blade;
 
-define('AUTO_COPY_POSTS_VERSION', '1.8.0');
+define('AUTO_COPY_POSTS_VERSION', '1.9.0');
 define('AUTO_COPY_POSTS_FILE', __FILE__);
 
 class AutoCopy {

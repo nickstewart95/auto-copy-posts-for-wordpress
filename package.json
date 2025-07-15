@@ -1,6 +1,6 @@
 {
 	"name": "auto-copy-posts-for-wordpress",
-	"version": "1.8.0",
+	"version": "1.9.0",
 	"description": "![banner](https://raw.githubusercontent.com/nickstewart95/auto-copy-posts-for-wordpress/main/banner-772x250.png)",
 	"js": "src/resources/build/build.js",
 	"css": "src/resources/build/build.css",
