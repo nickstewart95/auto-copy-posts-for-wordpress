@@ -325,6 +325,62 @@ class Events {
 			? $post['excerpt']['rendered']
 			: wp_trim_excerpt($content);
 
+		// Check to see if post has been created
+		$existing_posts = self::findExistingPosts();
+		$local_post = !empty($existing_posts[$mutated_id])
+			? $existing_posts[$mutated_id]
+			: false;
+
+		// If the post already exists and this an update, get any local additions to cat/tag/tax
+		// Not a fan of this since it should be a clean copy/update, but was a requested use case
+		if ($local_post) {
+			// Categories
+			$local_categories = get_the_category($local_post);
+			if (!empty($local_categories)) {
+				$local_category_ids = array_map(function ($category) {
+					return $category->term_id;
+				}, $local_categories);
+
+				$category_ids = array_unique(
+					array_merge($category_ids, $local_category_ids),
+				);
+			}
+
+			// Tags
+			$local_terms = get_the_terms($local_post, 'post_tag');
+			if (!empty($local_terms)) {
+				$local_terms_ids = array_map(function ($term) {
+					return $term->term_id;
+				}, $local_terms);
+
+				$tag_ids = array_unique(
+					array_merge($tag_ids, $local_terms_ids),
+				);
+			}
+
+			// Terms
+			$local_taxonomies = get_object_taxonomies($local_post_type_single);
+			$local_taxonomy_term_ids = [];
+			foreach ($local_taxonomies as $taxonomy) {
+				if ($taxonomy == 'post_tag') {
+					continue;
+				}
+
+				$terms = get_the_terms($local_post, $taxonomy);
+
+				if (is_array($terms) && count($terms) > 0) {
+					$local_taxonomy_term_ids = array_map(function ($term) {
+						return $term->term_id;
+					}, $terms);
+				}
+			}
+
+			$local_taxonomy_term_ids = array_filter($local_taxonomy_term_ids);
+			$taxonomy_ids = array_unique(
+				array_merge($taxonomy_ids, $local_taxonomy_term_ids),
+			);
+		}
+
 		// Setup post attributes
 		$data = [
 			'post_title' => $title,
@@ -342,12 +398,6 @@ class Events {
 		];
 
 		delete_transient($transient);
-
-		// Check to see if post has been created
-		$existing_posts = self::findExistingPosts();
-		$local_post = !empty($existing_posts[$mutated_id])
-			? $existing_posts[$mutated_id]
-			: false;
 
 		// Update or create
 		if ($local_post) {
