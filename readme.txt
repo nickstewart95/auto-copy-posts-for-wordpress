@@ -18,6 +18,7 @@ A simple WordPress plugin that can sync posts from one WordPress site to another
 = 1.9 =
 
 - Copy any existing ACF fields that are visible
+- Append local cat/tag/terms to incoming to prevent overwrite
 
 = 1.8 =
 

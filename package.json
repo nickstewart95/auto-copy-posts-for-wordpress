@@ -14,7 +14,7 @@
 	},
 	"scripts": {
 		"build": "parcel build",
-		"package": "zip -r auto-copy-posts-for-wordpress.zip .  -x '.vscode/*' '.git/*' '.parcel-cache/*' 'node_modules/' 'error.log' 'src/cache/*'"
+		"package": "npm run build && zip -r auto-copy-posts-for-wordpress.zip .  -x '.DS_Store .gitignore composer.json composer.lock package.lock package.json error.log .vscode/*' '.git/*' '.parcel-cache/*' 'node_modules/*' 'error.log' 'src/cache/*'"
 	},
 	"author": "Nick Stewart",
 	"license": "ISC",
