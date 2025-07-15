@@ -4,7 +4,7 @@ Author URI: https://nickstewart.me
 Tags: sync, copy, posts
 Requires at least: 5.3
 Tested up to: 6.1.1
-Stable tag: 1.8.0
+Stable tag: 1.9.0
 Requires PHP: 8.0
 
 Sync posts from one Wordpress site to another
@@ -14,6 +14,11 @@ Sync posts from one Wordpress site to another
 A simple WordPress plugin that can sync posts from one WordPress site to another using the REST API.
 
 == Changelog ==
+
+= 1.9 =
+
+- Copy any existing ACF fields that are visible
+- Append local cat/tag/terms to incoming to prevent overwrite
 
 = 1.8 =
 
