@@ -81,7 +81,7 @@ Errors are logged to error.log inside the plugin folder
 
 `auto_copy_posts_sync_schedule` - The cron schedule for how often the sync runs, default value is `0 4,14 * * *`;
 
-`auto_copy_posts_site_url` - The url of the WordPress site posts are being syncd from, default value is `https://tjwrestling.com`
+`auto_copy_posts_site_url` - The url of the WordPress site posts are being syncd from
 
 `auto_copy_posts_post_per_page` - The number of posts being grabbed at a time, default value is `10`
 

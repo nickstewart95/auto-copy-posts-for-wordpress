@@ -18,6 +18,7 @@ A simple WordPress plugin that can sync posts from one WordPress site to another
 = 1.9.1 =
 
 - Add additional check when running user initiated actions
+- Removed default for site url
 
 = 1.9 =
 

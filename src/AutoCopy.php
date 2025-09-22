@@ -14,7 +14,7 @@ class AutoCopy {
 	private static $instance = null;
 
 	const DEFAULT_SYNC_SCHEDULE = '0 4,14 * * *';
-	const DEFAULT_SITE_URL = 'https://tjwrestling.com';
+	const DEFAULT_SITE_URL = '';
 	const DEFAULT_POSTS_PER_PAGE = 10;
 	const DEFAULT_POSTS_AUTHOR_ID = 1;
 	const DEFAULT_POST_TYPE_SINGLE = 'post';
@@ -634,6 +634,7 @@ WHERE meta.`meta_key` = %s
 			$notice = match ($_GET['notice']) {
 				'dispatch' => 'Sync scheduled',
 				'delete' => 'Sync posts scheduled to be deleted',
+				'site_url_error' => 'Site URL needs to be set',
 				default => null,
 			};
 		}
@@ -687,6 +688,17 @@ WHERE meta.`meta_key` = %s
 		}
 
 		if ($is_auto_copy_plugin && $action == 'dispatch') {
+			$base_url = self::getSiteUrl();
+
+			if (empty($base_url)) {
+				$url = admin_url(
+					'options-general.php?page=auto-copy-posts-wordpress&notice=site_url_error',
+				);
+
+				wp_redirect($url);
+				die();
+			}
+
 			do_action('auto_copy_posts_sync');
 
 			$url = admin_url(
@@ -876,6 +888,11 @@ WHERE meta.`meta_key` = %s
 	): string {
 		$post_id = self::mutatePostId($post['id']);
 
+		if (empty($mutated_id)) {
+			AutoCopy::logError('No site url set');
+			return '';
+		}
+
 		$name = 'auto_copy_posts_temp_' . $post_id;
 
 		if ($create) {
@@ -895,6 +912,10 @@ WHERE meta.`meta_key` = %s
 			'auto_copy_posts_site_url',
 			self::pluginSetting('auto_copy_posts_site_url'),
 		);
+
+		if (empty($base_url)) {
+			return '';
+		}
 
 		$base_url = rtrim($base_url, '/');
 

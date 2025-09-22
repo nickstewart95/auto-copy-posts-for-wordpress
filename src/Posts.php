@@ -16,6 +16,11 @@ class Posts {
 	): bool|array {
 		$base_url = AutoCopy::getSiteUrl();
 
+		if (empty($base_url)) {
+			AutoCopy::logError('No site url set');
+			return false;
+		}
+
 		$post_type = $post_type ?? AutoCopy::DEFAULT_POST_TYPE_PLURAL;
 
 		$posts_per_page = apply_filters(
@@ -84,6 +89,11 @@ class Posts {
 
 		$base_url = AutoCopy::getSiteUrl();
 
+		if (empty($base_url)) {
+			AutoCopy::logError('No site url set');
+			return;
+		}
+
 		$post_type = apply_filters(
 			'auto_copy_posts_post_type_plural',
 			AutoCopy::pluginSetting('auto_copy_posts_post_type_plural'),
@@ -119,6 +129,11 @@ class Posts {
 	 */
 	public static function requestMediaAttachment($id, $post_id): string|bool {
 		$base_url = AutoCopy::getSiteUrl();
+
+		if (empty($base_url)) {
+			AutoCopy::logError('No site url set');
+			return false;
+		}
 
 		$client = new Client([
 			'base_uri' => $base_url,

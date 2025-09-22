@@ -432,6 +432,11 @@ class Events {
 			AutoCopy::pluginSetting('auto_copy_posts_site_url'),
 		);
 
+		if (empty($site_url)) {
+			AutoCopy::logError('No site url set');
+			return;
+		}
+
 		$site_url = parse_url($site_url)['host'];
 		$site_url = str_replace('www.', '', $site_url);
 
