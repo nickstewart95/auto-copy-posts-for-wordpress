@@ -7,7 +7,7 @@ use Nickstewart\AutoCopy\Events;
 use Carbon\Carbon;
 use Jenssegers\Blade\Blade;
 
-define('AUTO_COPY_POSTS_VERSION', '1.9.0');
+define('AUTO_COPY_POSTS_VERSION', '1.9.1');
 define('AUTO_COPY_POSTS_FILE', __FILE__);
 
 class AutoCopy {
@@ -672,18 +672,21 @@ WHERE meta.`meta_key` = %s
 			return;
 		}
 
-		if (
-			isset($_GET['page']) &&
-			$_GET['page'] !== 'auto-copy-posts-wordpress'
-		) {
+		$page = !empty($_GET['page']) ? $_GET['page'] : null;
+		$is_auto_copy_plugin =
+			$page == 'auto-copy-posts-wordpress' ? true : false;
+
+		$action = !empty($_GET['action']) ? $_GET['action'] : null;
+
+		if (!$is_auto_copy_plugin) {
 			return;
 		}
 
-		if (!isset($_GET['action'])) {
+		if (empty($action)) {
 			return;
 		}
 
-		if ($_GET['action'] == 'dispatch') {
+		if ($is_auto_copy_plugin && $action == 'dispatch') {
 			do_action('auto_copy_posts_sync');
 
 			$url = admin_url(
@@ -692,7 +695,7 @@ WHERE meta.`meta_key` = %s
 
 			wp_redirect($url);
 			die();
-		} elseif ($_GET['action'] == 'delete') {
+		} elseif ($is_auto_copy_plugin && $action == 'delete') {
 			do_action('auto_copy_posts_delete_synced_posts');
 
 			$url = admin_url(
