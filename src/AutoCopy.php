@@ -7,14 +7,14 @@ use Nickstewart\AutoCopy\Events;
 use Carbon\Carbon;
 use Jenssegers\Blade\Blade;
 
-define('AUTO_COPY_POSTS_VERSION', '1.9.0');
+define('AUTO_COPY_POSTS_VERSION', '1.9.1');
 define('AUTO_COPY_POSTS_FILE', __FILE__);
 
 class AutoCopy {
 	private static $instance = null;
 
 	const DEFAULT_SYNC_SCHEDULE = '0 4,14 * * *';
-	const DEFAULT_SITE_URL = 'https://tjwrestling.com';
+	const DEFAULT_SITE_URL = '';
 	const DEFAULT_POSTS_PER_PAGE = 10;
 	const DEFAULT_POSTS_AUTHOR_ID = 1;
 	const DEFAULT_POST_TYPE_SINGLE = 'post';
@@ -634,6 +634,7 @@ WHERE meta.`meta_key` = %s
 			$notice = match ($_GET['notice']) {
 				'dispatch' => 'Sync scheduled',
 				'delete' => 'Sync posts scheduled to be deleted',
+				'site_url_error' => 'Site URL needs to be set',
 				default => null,
 			};
 		}
@@ -672,18 +673,32 @@ WHERE meta.`meta_key` = %s
 			return;
 		}
 
-		if (
-			isset($_GET['page']) &&
-			$_GET['page'] !== 'auto-copy-posts-wordpress'
-		) {
+		$page = !empty($_GET['page']) ? $_GET['page'] : null;
+		$is_auto_copy_plugin =
+			$page == 'auto-copy-posts-wordpress' ? true : false;
+
+		$action = !empty($_GET['action']) ? $_GET['action'] : null;
+
+		if (!$is_auto_copy_plugin) {
 			return;
 		}
 
-		if (!isset($_GET['action'])) {
+		if (empty($action)) {
 			return;
 		}
 
-		if ($_GET['action'] == 'dispatch') {
+		if ($is_auto_copy_plugin && $action == 'dispatch') {
+			$base_url = self::getSiteUrl();
+
+			if (empty($base_url)) {
+				$url = admin_url(
+					'options-general.php?page=auto-copy-posts-wordpress&notice=site_url_error',
+				);
+
+				wp_redirect($url);
+				die();
+			}
+
 			do_action('auto_copy_posts_sync');
 
 			$url = admin_url(
@@ -692,7 +707,7 @@ WHERE meta.`meta_key` = %s
 
 			wp_redirect($url);
 			die();
-		} elseif ($_GET['action'] == 'delete') {
+		} elseif ($is_auto_copy_plugin && $action == 'delete') {
 			do_action('auto_copy_posts_delete_synced_posts');
 
 			$url = admin_url(
@@ -873,6 +888,11 @@ WHERE meta.`meta_key` = %s
 	): string {
 		$post_id = self::mutatePostId($post['id']);
 
+		if (empty($mutated_id)) {
+			AutoCopy::logError('No site url set');
+			return '';
+		}
+
 		$name = 'auto_copy_posts_temp_' . $post_id;
 
 		if ($create) {
@@ -892,6 +912,10 @@ WHERE meta.`meta_key` = %s
 			'auto_copy_posts_site_url',
 			self::pluginSetting('auto_copy_posts_site_url'),
 		);
+
+		if (empty($base_url)) {
+			return '';
+		}
 
 		$base_url = rtrim($base_url, '/');
 
