@@ -112,7 +112,7 @@ class Events {
 		string $post_type = null
 	): void {
 		if (empty($posts)) {
-			AutoCopy::logError('There wo no posts for ' . $post_type);
+			AutoCopy::logError('There were no posts for ' . $post_type);
 			return;
 		}
 
@@ -433,7 +433,7 @@ class Events {
 		);
 
 		if (empty($site_url)) {
-			AutoCopy::logError('No site url set');
+			AutoCopy::logError('No site url set when creating post');
 			return;
 		}
 

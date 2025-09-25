@@ -146,6 +146,7 @@ May or may not get to these todo items, more so if I have time and noticed I sho
 - [x] Copy over media
 - [x] Add option to match on title
 - [ ] Add test coverage
+- [ ] Clean up completed action scheduler history
 
 ## Credits
 
