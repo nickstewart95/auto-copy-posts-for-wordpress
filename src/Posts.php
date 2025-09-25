@@ -17,7 +17,7 @@ class Posts {
 		$base_url = AutoCopy::getSiteUrl();
 
 		if (empty($base_url)) {
-			AutoCopy::logError('No site url set');
+			AutoCopy::logError('No site url set when requesting posts');
 			return false;
 		}
 
@@ -90,7 +90,7 @@ class Posts {
 		$base_url = AutoCopy::getSiteUrl();
 
 		if (empty($base_url)) {
-			AutoCopy::logError('No site url set');
+			AutoCopy::logError('No site url set when requesting post');
 			return;
 		}
 
@@ -131,7 +131,9 @@ class Posts {
 		$base_url = AutoCopy::getSiteUrl();
 
 		if (empty($base_url)) {
-			AutoCopy::logError('No site url set');
+			AutoCopy::logError(
+				'No site url set when requesting media attachment',
+			);
 			return false;
 		}
 

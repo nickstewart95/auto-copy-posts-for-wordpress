@@ -7,7 +7,7 @@ use Nickstewart\AutoCopy\Events;
 use Carbon\Carbon;
 use Jenssegers\Blade\Blade;
 
-define('AUTO_COPY_POSTS_VERSION', '1.9.1');
+define('AUTO_COPY_POSTS_VERSION', '1.9.2');
 define('AUTO_COPY_POSTS_FILE', __FILE__);
 
 class AutoCopy {
@@ -888,8 +888,8 @@ WHERE meta.`meta_key` = %s
 	): string {
 		$post_id = self::mutatePostId($post['id']);
 
-		if (empty($mutated_id)) {
-			AutoCopy::logError('No site url set');
+		if (empty($post_id)) {
+			AutoCopy::logError('No site url set when fetching transient');
 			return '';
 		}
 
@@ -927,13 +927,9 @@ WHERE meta.`meta_key` = %s
 	 */
 	public static function mutatePostId(int $id): string {
 		//site url with id append
+		$site_url = self::getSiteUrl();
 
-		$base_url = apply_filters(
-			'auto_copy_posts_site_url',
-			self::pluginSetting('auto_copy_posts_site_url'),
-		);
-
-		$url_array = parse_url($base_url);
+		$url_array = parse_url($site_url);
 		$host = $url_array['host'];
 		$host_url_parts = explode('.', $host);
 
